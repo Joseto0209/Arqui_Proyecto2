@@ -1,46 +1,69 @@
-# Copyright 2026 Universidad de los Andes.
-# Licensed under the Solderpad Hardware License, Version 0.51 (the "License");
-# you may not use this file except in compliance with the License.
-# SPDX-License-Identifier: SHL-0.51
+# Proyecto 1 - Calculadora de 4 bits
+# Flujo basado en el Makefile del Pochoco SoC (Nicolas Villegas, UANDES 2026)
 #
-# Course: Arquitectura de Computadores (2026)
-# 
-# Authors:
-# - Nicolás Villegas <navillegas@miuandes.cl>
+# Uso:
+#   make sim    -> compila y corre el testbench, genera el VCD
+#   make wave   -> abre GTKWave con el resultado
+#   make prog   -> sintetiza, hace place & route y programa la FPGA
+#   make stats  -> muestra el uso de recursos de la iCE40
+#   make clean  -> borra todo lo generado
 
-# Configuration
-TOP  := pochoco_soc
-PCF  := goboard.pcf
+TOP   := calc_top
+TB    := tb_calc_core
+PCF   := goboard.pcf
 
-# RTL Sources
-SRC  := $(wildcard ./rtl/*.v ./rtl/**/*.v)
+SRC     := $(wildcard rtl/*.v)
+TB_SRC  := $(wildcard tb/*.v)
 
-# Build Targets
-JSON := $(TOP).json
-ASC  := $(TOP).asc
-BIN  := $(TOP).bin
+BUILD := build
+JSON  := $(BUILD)/$(TOP).json
+ASC   := $(BUILD)/$(TOP).asc
+BIN   := $(BUILD)/$(TOP).bin
+VVP   := $(BUILD)/$(TB).vvp
+VCD   := $(BUILD)/$(TB).vcd
 
-.PHONY: all prog clean stats
+.PHONY: all sim wave prog stats clean
 
-# Default target
 all: prog
 
-# Step 1: Synthesis using Yosys
-$(JSON): $(SRC)
-	yosys -p "read_verilog $(SRC); synth_ice40 -top $(TOP) -json ${TOP}.json; stat"
+# ---------------------------------------------------------------
+# Simulacion
+# ---------------------------------------------------------------
+# El testbench debe contener:
+#   initial begin
+#     $dumpfile("build/tb_calc_core.vcd");
+#     $dumpvars(0, tb_calc_core);
+#   end
 
-# Step 2: Place and Route using NextPNR
+sim: $(VCD)
+
+$(VCD): $(SRC) $(TB_SRC) | $(BUILD)
+	iverilog -g2005 -Wall -o $(VVP) -s $(TB) $(SRC) $(TB_SRC)
+	vvp $(VVP)
+
+wave: $(VCD)
+	gtkwave $(VCD) waves.gtkw
+
+# ---------------------------------------------------------------
+# Sintesis, place & route, bitstream
+# ---------------------------------------------------------------
+$(JSON): $(SRC) | $(BUILD)
+	yosys -p "read_verilog $(SRC); synth_ice40 -top $(TOP) -json $(JSON); stat"
+
 $(ASC): $(JSON) $(PCF)
 	nextpnr-ice40 --hx1k --package vq100 --json $(JSON) --pcf $(PCF) --asc $(ASC)
 
-# Step 3: Bitstream Generation
 $(BIN): $(ASC)
 	icepack $(ASC) $(BIN)
 
-# Step 4: Flash the Board
 prog: $(BIN)
 	iceprog $(BIN)
 
-# Clean up generated files
+stats: $(JSON)
+	@yosys -p "read_json $(JSON); stat"
+
+$(BUILD):
+	mkdir -p $(BUILD)
+
 clean:
-	rm -f $(JSON) $(ASC) $(BIN)
+	rm -rf $(BUILD)

@@ -1,60 +1,104 @@
-# Pochoco SoC & Espino Core
+# Lab 4 — VetClinic: Index & Show Views
 
-> Meet Pochoco SoC and Espino Core. Inspired by the native flora of the Pochoco trails, it is an entry-level, highly efficient architecture designed to flourish in resource-constrained environments.
+## Objective
 
-![Pochoco SoC Architecture](pochoco_soc.svg)
+In this lab, you will add controllers and views to display the data you created in Lab 3. By the end, users will be able to browse lists of records and view the details of each one. **No create/edit functionality yet** — this lab focuses exclusively on read-only pages.
 
-Welcome to the repository! This project contains the RTL for a custom 32-bit processor and its surrounding System-on-Chip (SoC) designed for FPGA deployment. The design is kept straightforward to help explore and understand computer architecture fundamentals.
+## Setup
 
-This is meant to be forked, not just cloned. You'll be poking around the RTL, so make it your own, we won't judge (we might even be a little proud).
+In this lab you will continue working on the VetClinic application you built in Lab 3, but you must submit it in a **new repository**. Your Lab 3 repository will not be reviewed for this lab.
 
-## Repository Structure
+1. **Create a new, empty repository** on GitHub (no README, no .gitignore, no license — completely empty). Make sure it is **public** so the teaching assistant can review it.
 
-The hardware is written in Verilog and divided into these main categories:
-
-* **The Espino Core**: The central processing unit. It includes all standard pipeline stages like instruction fetch, instruction decode, an ALU for execution, a register file, a load/store unit for memory operations, and a pipeline controller. It implements [RV32E](https://docs.riscv.org/reference/isa/v20260120/unpriv/rv32.html) with a catch you might want to check out the code for.
-* **The Pochoco SoC**: The top-level system wrapper. It connects the CPU core to a unified instruction/data RAM, physical board peripherals (like LEDs, switches, and displays), and an external SPI slave interface.
-* **Build Files**: Constraints to map the design to the physical FPGA pins, and automation scripts for synthesis, routing, and flashing using an open-source toolchain.
-
-## Memory Map
-
-The SoC routes memory and data requests using a hardcoded address decoding scheme based on the highest bits of the 32-bit address.
-
-* **`0x0000_0000` - Unified RAM**: The shared memory space for both instructions and data.
-* **`0x8000_0000` - Board Peripherals**: Memory-mapped I/O for the physical board.
-  * `Offset 0x00`: 7-Segment Displays
-  * `Offset 0x04`: LEDs
-  * `Offset 0x08`: Button Inputs
-* **`0x8001_0000` - SPI Slave**: Custom SPI interface routing.
-  * `Offset 0x00`: SPI Status (Chip Select state, New Data flag)
-  * `Offset 0x04`: Received "Price" byte (from external master)
-  * `Offset 0x08`: "Decision" byte (written by CPU to transmit)
-
-Dive into the source code to see exactly how these components and connections are built under the hood!
-
-## How to Build
-
-To synthesize and build the project, you will need the open-source FPGA toolchain.
-
-1. Install the tools by following the instructions at the [oss-cad-suite-build repository](https://github.com/yosyshq/oss-cad-suite-build).
-2. Once installed, ~~blindly copy-paste~~ (we strongly encourage reading the Makefile first to make sure we aren't deleting your home directory) the following command in the project root to generate and program the final bitstream:
+2. In your local `vet_clinic` project from Lab 3, add the new repository as a remote and push your code:
 
 ```bash
-make all
+cd vet_clinic
+git remote add lab4 <your-new-repo-url>
+git push -u lab4 main
 ```
 
-## Software
+3. Verify on GitHub that your code is now in the new repository.
 
-The `sw/` folder holds the RV32E assembly example programs that run on the Espino Core (`blink.s`, `7seg.s`, `buttons_leds.s`), plus a `Makefile` to assemble them into the `.hex` files the RTL loads at boot via `$readmemh`.
-
-You'll need a RISC-V toolchain on your `PATH` (`riscv64-unknown-elf-{as,ld,objcopy}` on Debian/Ubuntu/WSL via `sudo apt install gcc-riscv64-unknown-elf`, or `brew install riscv64-unknown-elf-gcc` on macOS). If your toolchain uses a different prefix, override it on the command line rather than editing the Makefile:
+4. From now on, push your Lab 4 work to this new remote:
 
 ```bash
-cd sw
-make blink                        # assembles blink.s -> blink.hex
-make PREFIX=riscv64-elf- blink    # if your toolchain uses a different prefix
+git push lab4 main
 ```
 
-Drop a new `<name>.s` file in `sw/` and `make <name>` picks it up automatically, no `Makefile` changes needed. Don't forget to change the MemFile in pochoco_soc.v.
+5. **Submit the link to your new repository on Canvas.**
 
-**CATCH:** The core implements [RV32E](https://docs.riscv.org/reference/isa/v20260120/unpriv/rv32.html), with one thing worth knowing: shift instructions (`SLL`/`SRL`/`SRA`/`SLLI`/`SRLI`/`SRAI`) are decoded correctly but disabled in the ALU to save LUTs on the target FPGA, so they currently execute as `ADD` instead. Avoid shifts in your assembly, or design your own shifter...
+## Instructions
+
+### 1. Generate Controllers
+
+Generate controllers for the following resources with `index` and `show` actions:
+
+- **Owners**
+- **Pets**
+- **Vets**
+- **Appointments**
+
+You do not need a controller for Treatments — they will be displayed within the Appointment show page.
+
+### 2. Define Routes
+
+In `config/routes.rb`, define resourceful routes for each of the four resources, but limit them to only the `index` and `show` actions. Set the root path to the Owners index page.
+
+### 3. Index Views
+
+Create an index view for each resource that displays a table listing all records. Each table should include the most relevant columns for that entity:
+
+| Resource     | Columns to display                                      |
+|--------------|---------------------------------------------------------|
+| Owners       | Full name, email, phone, number of pets                 |
+| Pets         | Name, species, breed, owner name, date of birth         |
+| Vets         | Full name, email, specialization                        |
+| Appointments | Date, pet name, vet name, reason, status                |
+
+Each row should include a link to the corresponding show page (e.g., clicking an owner's name takes you to their detail page).
+
+### 4. Show Views
+
+Create a show view for each resource that displays all of its attributes and its related records:
+
+**Owner show page**
+- Display all owner attributes (name, email, phone, address).
+- List all of the owner's pets with links to each pet's show page.
+
+**Pet show page**
+- Display all pet attributes (name, species, breed, date of birth, weight).
+- Show the owner's name as a link to the owner's show page.
+- List all of the pet's appointments with links to each appointment's show page.
+
+**Vet show page**
+- Display all vet attributes (name, email, phone, specialization).
+- List all of the vet's appointments with links to each appointment's show page.
+
+**Appointment show page**
+- Display all appointment attributes (date, reason, status).
+- Show the pet's name and the vet's name as links to their respective show pages.
+- List all treatments for this appointment, displaying: name, medication, dosage, administered at, and notes.
+
+### 5. Navigation
+
+Add a shared navigation bar (use a partial in `app/views/layouts/`) that includes links to each of the four index pages. The navigation bar should be visible on every page.
+
+Use Bootstrap to style the navigation bar and the rest of the application. You may use the Bootstrap CDN or install it via a gem.
+
+### 6. Formatting
+
+Apply the following formatting to improve readability:
+
+- Display dates in a human-friendly format (e.g., `March 15, 2026` instead of `2026-03-15`).
+- Display the appointment status as a word (e.g., "Scheduled", "Completed") instead of the raw integer value.
+- Use Bootstrap classes to style tables, links, and page layout.
+
+## Deliverables
+
+- Controllers with `index` and `show` actions for Owners, Pets, Vets, and Appointments.
+- Resourceful routes limited to `index` and `show`.
+- Index pages displaying tables of records with links to show pages.
+- Show pages displaying all attributes and related records with navigation between them.
+- A shared navigation bar linking to all index pages.
+- Bootstrap styling applied throughout the application.
