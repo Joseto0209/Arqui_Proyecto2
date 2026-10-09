@@ -19,4 +19,5 @@ module_stats/
 # Simulation Artifacts (Iverilog / GTKWave / Cocotb)
 sim/sim
 *.vcd
-*.csv
+*.csv 
+build/

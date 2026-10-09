@@ -45,6 +45,30 @@ module pochoco_periph (
 
   assign leds_o = led_q;
 
+  // ------------------------------------------------------------------
+  // Contador de ciclos (agregado por el grupo, Proyecto 2)
+  //
+  // Registro de 32 bits que suma 1 en cada flanco de subida del reloj
+  // de 25 MHz. El programa lo lee con lw en 0x8000_000C (offset 0x0C)
+  // y es de solo lectura: las escrituras en ese offset se ignoran.
+  //
+  //   1 ciclo     = 40 ns
+  //   1 decima    = 2.500.000 ciclos
+  //   3 segundos  = 75.000.000 ciclos
+  //   desborde    = 2^32 ciclos = 171,8 s
+  //
+  // El juego nunca usa el valor absoluto, solo diferencias
+  // (fin - inicio). La resta sin signo de 32 bits da el resultado
+  // correcto aunque el contador haya dado la vuelta entre ambas
+  // lecturas, siempre que el intervalo sea menor a 171,8 s.
+  // ------------------------------------------------------------------
+  reg [31:0] cycle_q;
+
+  always @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) cycle_q <= 32'b0;
+    else         cycle_q <= cycle_q + 32'd1;
+  end
+
   // Hex to 7-segment decoder function
   function [6:0] hex2seg;
     input [3:0] hex;
@@ -80,6 +104,7 @@ module pochoco_periph (
     else if (access & ~we_i) begin
       case (off)
         6'd2: rdata_o <= {28'b0, btn_i}; // Buttons
+        6'd3: rdata_o <= cycle_q;        // Contador de ciclos (Proyecto 2)
         default: rdata_o <= 32'b0;
       endcase
     end
