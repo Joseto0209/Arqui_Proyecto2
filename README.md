@@ -204,6 +204,74 @@ make bin      # todo menos grabar
 make hex      # solo regenera sw/game.hex
 ```
 
+### WSL (Windows con Linux): grabar la FPGA
+
+WSL2 no ve los dispositivos USB por sí solo, así que `make` compila bien pero
+`iceprog` falla con `Can't find iCE FTDI USB device`. Hay que pasarle la placa
+a WSL con `usbipd`. **No se usa Zadig**: la placa debe conservar su driver FTDI
+original (si ya se cambió con Zadig, en el Administrador de dispositivos:
+clic derecho sobre el dispositivo → *Desinstalar dispositivo* marcando
+*Intentar quitar el controlador*, y reconectar la placa).
+
+**1. En Windows, una sola vez** (PowerShell como administrador: clic derecho →
+*Ejecutar como administrador*; `sudo` no sirve, es un comando de Windows):
+
+```
+winget install usbipd
+```
+
+Cerrar y volver a abrir PowerShell, y luego:
+
+```
+usbipd list                          # buscar el dispositivo 0403:6010 y su BUSID
+usbipd bind --busid <BUSID>          # requiere administrador, una sola vez
+```
+
+**2. En Windows, cada vez que se conecta la placa** (PowerShell normal):
+
+```
+usbipd attach --wsl --busid <BUSID>
+```
+
+En WSL, `lsusb` debe mostrar `0403:6010`.
+
+**3. En WSL, una sola vez: permisos para usar el USB sin root.** Crear el archivo
+`/etc/udev/rules.d/53-lattice-ftdi.rules`:
+
+```
+sudo nano /etc/udev/rules.d/53-lattice-ftdi.rules
+```
+
+con esta única línea (`==` compara, `=` asigna; `MODE` lleva un solo `=`):
+
+```
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="0403", ATTR{idProduct}=="6010", MODE="0666"
+```
+
+Recargar las reglas y volver a pasar la placa (la regla solo se aplica cuando
+el dispositivo se agrega):
+
+```
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+```
+usbipd detach --busid <BUSID>        # en PowerShell
+usbipd attach --wsl --busid <BUSID>  # en PowerShell
+```
+
+**4. Grabar:**
+
+```
+make
+```
+
+Si `udev` no está activo en WSL (`systemctl status systemd-udevd`), agregar
+`[boot]` y `systemd=true` en `/etc/wsl.conf`, ejecutar `wsl --shutdown` en
+PowerShell y abrir WSL de nuevo. Solución provisional, que se pierde al
+reconectar: `sudo chmod 666 /dev/bus/usb/001/002` (el número del dispositivo
+puede variar; verlo con `ls -l /dev/bus/usb/001/`).
+
 ---
 
 ## 5. Simulación y pruebas
@@ -287,7 +355,7 @@ contador, cerca de 1180 (92 %), con una frecuencia máxima de alrededor de
 |---|---|
 | `"yosys" no se reconoce como comando` | La terminal no es la de OSS CAD Suite. Abrir `start.bat`. |
 | `"python" no se reconoce` | Instalar Python marcando *Add to PATH* y abrir otra terminal. |
-| `Can't find iCE FTDI USB device` | Desconectar y reconectar el USB. La primera vez, aplicar Zadig (sección 1). |
+| `Can't find iCE FTDI USB device` | Desconectar y reconectar el USB. En Windows, la primera vez aplicar Zadig (sección 1). En WSL, ver «WSL» en la sección 4 (`usbipd` y regla udev). |
 | `COMPILACION FALLIDA` en `sim` | Revisar el error de iverilog. El `.bat` no corre la simulación vieja. |
 | `ERROR, linea N: ...` del ensamblador | El mensaje indica la línea de `game.s` y el problema. No se escribe `game.hex`. |
 | `Not enough words in the file` | Aviso inofensivo: el programa ocupa menos que las 512 palabras de la RAM. |
